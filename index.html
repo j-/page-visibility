@@ -1,0 +1,88 @@
+<!doctype html>
+<meta charset="utf-8">
+
+<title>Page visibility</title>
+
+<span id="output"></span>
+
+<script>
+(() => {
+
+const createStateMachine = (handler, currentState = null) => (newState) => {
+	// No state change. Ignore.
+	if (currentState === newState) return;
+	// Keep reference to old state in function scope.
+	const oldState = currentState;
+	// Returns true when given correct old state.
+	const from = (arg) => arg === oldState;
+	// Returns true when given correct new state.
+	const to = (arg) => arg === newState;
+	// Returns true when given correct state change.
+	const transition = (left, right) => from(left) && to(right);
+	// Used for error reporting etc.
+	transition.toString = () => `${oldState} -> ${newState}`;
+	// Store new state reference.
+	currentState = newState;
+	// Execute transition logic.
+	handler(transition, from, to);
+};
+
+const INTERVAL = 1000 / 30; // 30 FPS
+const OUTPUT_ELEMENT = document.getElementById('output');
+
+let clock;
+let timestamp;
+
+const States = {
+	UNLOADED: 0,
+	VISIBLE: 1,
+	HIDDEN: 2,
+};
+
+const setState = createStateMachine((transition) => {
+	switch (true) {
+		// Start clock
+		case transition(States.UNLOADED, States.VISIBLE):
+		case transition(States.HIDDEN, States.VISIBLE):
+			timestamp = Date.now();
+			clock = setInterval(handleTick, INTERVAL);
+			break;
+		// Stop clock
+		case transition(States.VISIBLE, States.HIDDEN):
+			clearInterval(clock);
+			break;
+		// Ignore
+		case transition(States.UNLOADED, States.HIDDEN):
+			break;
+		// Error
+		default:
+			throw new TypeError(`Cannot handle transition "${transition}"`);
+	}
+}, States.UNLOADED);
+
+const hidden = () => setState(States.HIDDEN);
+const visible = () => setState(States.VISIBLE);
+
+const handleTick = () => {
+	const diff = Date.now() - timestamp;
+	const fff = String(diff % 1000).padStart(3, '0');
+	const ss = String(Math.floor(diff / 1000) % 60).padStart(2, '0');
+	const mm = String(Math.floor(diff / 60000) % 60).padStart(2, '0');
+	OUTPUT_ELEMENT.textContent = `${mm}:${ss}.${fff}`;
+};
+
+const updateVisibility = () => {
+	if (document.hidden) {
+		hidden();
+	} else {
+		visible();
+	}
+};
+
+// Invoke on visibility change
+document.addEventListener('visibilitychange', updateVisibility);
+// Invoke immediately
+updateVisibility();
+
+})();
+</script>
